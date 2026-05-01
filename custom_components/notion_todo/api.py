@@ -86,9 +86,13 @@ class NotionApiClient:
         properties = database.get('properties', {})
         status_property = None
         for prop in properties.values():
-            if prop.get('id') == TASK_STATUS_PROPERTY and prop.get('type') == 'status':
+            if prop.get('type') != 'status':
+                continue
+            if prop.get('id') == TASK_STATUS_PROPERTY:
                 status_property = prop
                 break
+            if status_property is None:
+                status_property = prop
 
         if not status_property:
             self._status_cache_loaded = True
@@ -191,11 +195,35 @@ class NotionApiClient:
 
         """
         task_data = await self._get_task_template()
-        task_data = propHelper.set_property_by_id("title", title, task_data)
-        task_data = propHelper.set_property_by_id(TASK_STATUS_PROPERTY, status, task_data)
-        task_data = propHelper.set_property_by_id(TASK_DATE_PROPERTY, due, task_data)
-        task_data = propHelper.set_property_by_id(TASK_DESCRIPTION_PROPERTY, description, task_data)
-        update_properties = task_data['properties']
+        update_properties = {}
+
+        title_key = propHelper.get_property_key_by_id("title", task_data)
+        if title_key and title is not None:
+            update_properties[title_key] = {
+                "title": [{"type": "text", "text": {"content": title}}]
+            }
+
+        status_key = propHelper.get_property_key_by_id(TASK_STATUS_PROPERTY, task_data)
+        if status_key and status:
+            update_properties[status_key] = {"status": {"id": status}}
+
+        date_key = propHelper.get_property_key_by_id(TASK_DATE_PROPERTY, task_data)
+        if date_key:
+            if due:
+                start_str = due.isoformat() if hasattr(due, "isoformat") else str(due)
+                update_properties[date_key] = {"date": {"start": start_str}}
+            else:
+                update_properties[date_key] = {"date": None}
+
+        description_key = propHelper.get_property_key_by_id(TASK_DESCRIPTION_PROPERTY, task_data)
+        if description_key:
+            if description:
+                update_properties[description_key] = {
+                    "rich_text": [{"type": "text", "text": {"content": description}}]
+                }
+            else:
+                update_properties[description_key] = {"rich_text": []}
+
         return await self._api_wrapper(
             method="patch",
             url=f"{NOTION_URL}/pages/{task_id}",
@@ -212,10 +240,17 @@ class NotionApiClient:
 
         """
         task_template = await self._get_task_template()
-        task_data = task_template.copy()
-        task_data["properties"] = propHelper.del_properties_except(["title", TASK_STATUS_PROPERTY], task_data["properties"])
-        task_data = propHelper.set_property_by_id("title", title, task_data)
-        task_data = propHelper.set_property_by_id(TASK_STATUS_PROPERTY, status, task_data)
+        task_data = {"parent": task_template["parent"], "properties": {}}
+
+        title_key = propHelper.get_property_key_by_id("title", task_template)
+        if title_key:
+            task_data["properties"][title_key] = {
+                "title": [{"type": "text", "text": {"content": title}}]
+            }
+
+        status_key = propHelper.get_property_key_by_id(TASK_STATUS_PROPERTY, task_template)
+        if status_key and status:
+            task_data["properties"][status_key] = {"status": {"id": status}}
 
         return await self._api_wrapper(
             method="post",
@@ -251,10 +286,14 @@ class NotionApiClient:
             database = await self._get_database()
             self._cache_status_options(database)
             properties = database['properties']
-            propHelper.del_properties_except(["title", TASK_STATUS_PROPERTY, TASK_DATE_PROPERTY, TASK_DESCRIPTION_PROPERTY], properties)
+            selected_properties = {}
+            for property_id in ("title", TASK_STATUS_PROPERTY, TASK_DATE_PROPERTY, TASK_DESCRIPTION_PROPERTY):
+                key = propHelper.get_property_key_by_id(property_id, database)
+                if key and key in properties:
+                    selected_properties[key] = properties[key]
             self._task_template = {
                 'parent': {'database_id': self._database_id},
-                'properties': properties
+                'properties': selected_properties
             }
         return copy.deepcopy(self._task_template)
 
@@ -278,8 +317,17 @@ class NotionApiClient:
                     raise NotionApiClientAuthenticationError(
                         "Invalid credentials",
                     )
-                response.raise_for_status()
-                return await response.json()
+
+                if response.status >= 400:
+                    error_text = await response.text()
+                    raise NotionApiClientError(
+                        f"Notion API error {response.status}: {error_text[:500]}"
+                    )
+
+                content_type = response.headers.get("Content-Type", "")
+                if "application/json" in content_type:
+                    return await response.json()
+                return {}
 
         except asyncio.TimeoutError as exception:
             raise NotionApiClientCommunicationError(
@@ -289,6 +337,8 @@ class NotionApiClient:
             raise NotionApiClientCommunicationError(
                 "Error fetching information",
             ) from exception
+        except NotionApiClientError:
+            raise
         except Exception as exception:  # pylint: disable=broad-except
             raise NotionApiClientError(
                 "Something really wrong happened!"

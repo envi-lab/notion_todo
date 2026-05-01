@@ -2,6 +2,8 @@
 from datetime import datetime, date
 import logging
 
+from .const import TASK_DATE_PROPERTY, TASK_DESCRIPTION_PROPERTY, TASK_STATUS_PROPERTY
+
 DATE_FORMAT = '%Y-%m-%d'
 DATETIME_FORMAT = DATE_FORMAT + 'T%H:%M:%S.%f%z'
 class NotionPropertyHelper:
@@ -14,6 +16,11 @@ class NotionPropertyHelper:
         if key is None:
             return None
         return NotionPropertyHelper._property(data['properties'][key])
+
+    @staticmethod
+    def get_property_key_by_id(id, data):
+        """Get property key by id or a compatible fallback."""
+        return NotionPropertyHelper._get_property_key_by_id(id, data)
 
     @staticmethod
     def set_property_by_id(id, value, data):
@@ -61,9 +68,39 @@ class NotionPropertyHelper:
 
     @staticmethod
     def _get_property_key_by_id(id, data):
-        for name, attr in data['properties'].items():
+        properties = data.get('properties', {})
+        for name, attr in properties.items():
             if 'id' in attr and attr['id'] == id:
                 return name
+
+        if id == 'title':
+            for name, attr in properties.items():
+                if attr.get('type') == 'title':
+                    return name
+            return None
+
+        if id == TASK_STATUS_PROPERTY:
+            for name, attr in properties.items():
+                if attr.get('type') == 'status':
+                    return name
+            return None
+
+        if id == TASK_DATE_PROPERTY:
+            for name, attr in properties.items():
+                if attr.get('type') == 'date':
+                    return name
+            return None
+
+        if id == TASK_DESCRIPTION_PROPERTY:
+            preferred_names = {'description', 'beschreibung', 'zusammenfassung', 'summary'}
+            for name, attr in properties.items():
+                if attr.get('type') == 'rich_text' and name.strip().lower() in preferred_names:
+                    return name
+            for name, attr in properties.items():
+                if attr.get('type') == 'rich_text':
+                    return name
+
+        return None
 
     @staticmethod
     def _property(prop, value=None):
