@@ -51,21 +51,22 @@ class NotionApiClient:
             token (str): Notion token with access to ToDo database
             database_id (str): id of the ToDo database
             session (aiohttp.ClientSession): the session
+            project_property (str | None): Name of the relation property linking to projects
+            project_filter (str | None): Only include tasks whose project title contains this text
 
         """
         self._token = token
         self._session = session
         self._headers['Authorization'] = f'Bearer {token}'
         self._database_id = database_id
-        self._project_property = project_property.strip() if project_property else None
-        self._project_filter = project_filter.strip().lower() if project_filter else None
-        self._related_page_title_cache: dict[str, str] = {}
         self._task_template = None
         self._status_cache_loaded = False
         self._active_status_ids = set()
         self._completed_status_ids = set()
         self._default_active_status_id = None
         self._default_completed_status_id = None
+        self._project_property = project_property.strip() if project_property else None
+        self._project_filter = project_filter.strip().lower() if project_filter else None
 
     @staticmethod
     def _name_looks_completed(value: str | None) -> bool:
@@ -180,77 +181,73 @@ class NotionApiClient:
                 break
             start_cursor = page.get('next_cursor')
 
-        if self._project_filter:
-            results = await self._filter_results_by_project(results)
+        if self._project_property and self._project_filter:
+            # Resolve relation titles once per unique related page id.
+            all_related_ids: set[str] = set()
+            task_related_map: dict[str, list[str]] = {}
+            for task in results:
+                task_id = task.get('id')
+                if not task_id:
+                    continue
+                prop = self._find_relation_property(task, self._project_property)
+                if prop is None:
+                    continue
+                related_ids = [r['id'] for r in prop if r.get('id')]
+                task_related_map[task_id] = related_ids
+                all_related_ids.update(related_ids)
+
+            title_by_page_id = await self._fetch_page_titles_map(list(all_related_ids))
+
+            filtered = []
+            for task in results:
+                related_ids = task_related_map.get(task.get('id', ''), [])
+                if not related_ids:
+                    continue
+                if any(
+                    self._project_filter in title_by_page_id.get(page_id, '').lower()
+                    for page_id in related_ids
+                ):
+                    filtered.append(task)
+            results = filtered
 
         return {'results': results}
 
-    async def _filter_results_by_project(self, tasks: list[dict]) -> list[dict]:
-        """Filter tasks by related project title match."""
-        filtered_tasks = []
-        for task in tasks:
-            properties = task.get('properties', {})
-            relation_key = self._get_relation_property_key(properties)
-            if not relation_key:
+    def _find_relation_property(self, task: dict, property_name: str) -> list | None:
+        """Find relation property value by name (case-insensitive) or id."""
+        name_lower = property_name.lower()
+        for name, prop in task.get('properties', {}).items():
+            if prop.get('type') != 'relation':
                 continue
-
-            relation_items = properties.get(relation_key, {}).get('relation') or []
-            relation_ids = [item.get('id') for item in relation_items if item.get('id')]
-            if not relation_ids:
-                continue
-
-            related_titles = await self._get_related_page_titles(relation_ids)
-            if any(self._project_filter in title.lower() for title in related_titles if title):
-                filtered_tasks.append(task)
-
-        return filtered_tasks
-
-    def _get_relation_property_key(self, properties: dict) -> str | None:
-        """Get relation property key for project filtering."""
-        if self._project_property:
-            project_property_lower = self._project_property.lower()
-            for name, prop in properties.items():
-                if prop.get('type') != 'relation':
-                    continue
-                if name.strip().lower() == project_property_lower or prop.get('id') == self._project_property:
-                    return name
-
-        for name, prop in properties.items():
-            if prop.get('type') == 'relation':
-                return name
-
+            if name.strip().lower() == name_lower or prop.get('id') == property_name:
+                return prop.get('relation', [])
         return None
 
-    async def _get_related_page_titles(self, page_ids: list[str]) -> list[str]:
-        """Resolve related Notion page ids to page titles."""
-        missing_ids = [page_id for page_id in page_ids if page_id not in self._related_page_title_cache]
-        if missing_ids:
-            responses = await asyncio.gather(
-                *[self._api_wrapper(
-                    method="get",
-                    url=f"{NOTION_URL}/pages/{page_id}",
-                    headers=self._headers,
-                ) for page_id in missing_ids],
-                return_exceptions=True,
-            )
-            for page_id, response in zip(missing_ids, responses):
-                if isinstance(response, Exception):
-                    self._related_page_title_cache[page_id] = ""
-                    continue
-                self._related_page_title_cache[page_id] = self._extract_page_title(response)
+    async def _fetch_page_titles_map(self, page_ids: list[str]) -> dict[str, str]:
+        """Fetch page titles keyed by page id."""
+        if not page_ids:
+            return {}
 
-        return [self._related_page_title_cache.get(page_id, "") for page_id in page_ids]
+        semaphore = asyncio.Semaphore(8)
 
-    @staticmethod
-    def _extract_page_title(page: dict) -> str:
-        """Extract human-readable title from a Notion page response."""
-        properties = page.get('properties', {})
-        for prop in properties.values():
-            if prop.get('type') != 'title':
-                continue
-            title_parts = prop.get('title') or []
-            return ''.join(part.get('plain_text', '') for part in title_parts)
-        return ''
+        async def _fetch_one(page_id: str) -> tuple[str, str]:
+            async with semaphore:
+                try:
+                    page = await self._api_wrapper(
+                        method="get",
+                        url=f"{NOTION_URL}/pages/{page_id}",
+                        headers=self._headers,
+                    )
+                    for prop in page.get('properties', {}).values():
+                        if prop.get('type') == 'title':
+                            text = ''.join(t.get('plain_text', '') for t in prop.get('title', []))
+                            return page_id, text
+                except Exception:  # pylint: disable=broad-except
+                    pass
+                return page_id, ''
+
+        tasks = [_fetch_one(page_id) for page_id in page_ids]
+        fetched = await asyncio.gather(*tasks)
+        return {page_id: title for page_id, title in fetched}
 
     async def update_task(
         self,

@@ -86,6 +86,18 @@ class NotionPropertyHelper:
             return None
 
         if id == TASK_DATE_PROPERTY:
+            preferred_names = {
+                'due',
+                'due date',
+                'faellig',
+                'fällig',
+                'faelligkeit',
+                'fälligkeit',
+                'deadline',
+            }
+            for name, attr in properties.items():
+                if attr.get('type') == 'date' and name.strip().lower() in preferred_names:
+                    return name
             for name, attr in properties.items():
                 if attr.get('type') == 'date':
                     return name

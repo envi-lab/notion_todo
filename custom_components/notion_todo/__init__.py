@@ -11,7 +11,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import NotionApiClient
-from .const import DOMAIN, CONF_DATABASE_ID, CONF_PROJECT_PROPERTY, CONF_PROJECT_FILTER
+from .const import (
+    DOMAIN,
+    CONF_DATABASE_ID,
+    CONF_PROJECT_PROPERTY,
+    CONF_PROJECT_FILTER,
+)
 from .coordinator import NotionDataUpdateCoordinator
 
 PLATFORMS: list[Platform] = [

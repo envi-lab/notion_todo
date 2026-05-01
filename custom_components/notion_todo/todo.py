@@ -14,7 +14,12 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, TASK_STATUS_PROPERTY, TASK_DESCRIPTION_PROPERTY, TASK_DATE_PROPERTY
+from .const import (
+    DOMAIN,
+    TASK_STATUS_PROPERTY,
+    TASK_DESCRIPTION_PROPERTY,
+    TASK_DATE_PROPERTY,
+)
 from .coordinator import NotionDataUpdateCoordinator
 from .notion_property_helper import NotionPropertyHelper as propHelper
 
@@ -23,11 +28,8 @@ async def async_setup_entry(
 ) -> None:
     """Set up the todo platform config entry."""
     coordinator: NotionDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
-    entities = ['Notion']
-    async_add_entities(
-        NotionTodoListEntity(coordinator, e)
-        for e in entities
-    )
+    entity_name = f"Notion {entry.title[-6:]}" if entry.title else "Notion"
+    async_add_entities([NotionTodoListEntity(coordinator, entity_name, entry.entry_id)])
 
 STATUS_IN_PROGRESS = 'in-progress'
 STATUS_ARCHIVED = 'archived'
@@ -74,12 +76,13 @@ class NotionTodoListEntity(CoordinatorEntity[NotionDataUpdateCoordinator], TodoL
     def __init__(
         self,
         coordinator: NotionDataUpdateCoordinator,
-        user: str,
+        name: str,
+        entry_id: str,
     ) -> None:
         """Initialize TodoListEntity."""
         super().__init__(coordinator=coordinator)
-        self._attr_unique_id = f"{user}-{user}"
-        self._attr_name = user
+        self._attr_unique_id = f"{DOMAIN}_{entry_id}"
+        self._attr_name = name
         self._status = {}
 
     @callback
@@ -98,13 +101,15 @@ class NotionTodoListEntity(CoordinatorEntity[NotionDataUpdateCoordinator], TodoL
                 if status == TodoItemStatus.COMPLETED:
                     continue
 
+                due = propHelper.get_property_by_id(TASK_DATE_PROPERTY, task)
+
                 items.append(
                     TodoItem(
                         summary=propHelper.get_property_by_id('title', task),
                         uid=id,
                         status=status,
                         description=propHelper.get_property_by_id(TASK_DESCRIPTION_PROPERTY, task),
-                        due=propHelper.get_property_by_id(TASK_DATE_PROPERTY, task)
+                        due=due,
                     )
                 )
             self._attr_todo_items = items
