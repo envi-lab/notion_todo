@@ -5,7 +5,9 @@
                 "description": "If you need help with the configuration have a look here: https://github.com/envi-lab/notion_todo",
                 "data": {
                     "access_token": "Notion bearer token",
-                    "database_id": "Database id"
+                    "database_id": "Database id",
+                    "project_property": "Relation property for project links (optional, e.g. Project)",
+                    "project_filter": "Only include tasks whose related project contains this text (optional, e.g. Haushalt)"
                 }
             }
         },

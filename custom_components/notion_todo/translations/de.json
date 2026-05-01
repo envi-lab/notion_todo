@@ -5,7 +5,9 @@
                 "description": "Hilfe zur Konfiguration findest du hier: https://github.com/envi-lab/notion_todo",
                 "data": {
                     "access_token": "Notion bearer token",
-                    "database_id": "Datenbank id"
+                    "database_id": "Datenbank id",
+                    "project_property": "Relation-Property fuer Projektverknuepfungen (optional, z. B. Project)",
+                    "project_filter": "Nur Aufgaben anzeigen, deren verknuepftes Projekt diesen Text enthaelt (optional, z. B. Haushalt)"
                 }
             }
         },

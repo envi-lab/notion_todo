@@ -13,7 +13,13 @@ from .api import (
     NotionApiClientCommunicationError,
     NotionApiClientError,
 )
-from .const import DOMAIN, LOGGER, CONF_DATABASE_ID
+from .const import (
+    DOMAIN,
+    LOGGER,
+    CONF_DATABASE_ID,
+    CONF_PROJECT_PROPERTY,
+    CONF_PROJECT_FILTER,
+)
 
 
 class NotionTodoConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
@@ -32,7 +38,9 @@ class NotionTodoConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
                 await self._test_credentials(
                     token=user_input[CONF_ACCESS_TOKEN],
-                    database_id=user_input[CONF_DATABASE_ID]
+                    database_id=user_input[CONF_DATABASE_ID],
+                    project_property=user_input.get(CONF_PROJECT_PROPERTY),
+                    project_filter=user_input.get(CONF_PROJECT_FILTER),
                 )
             except NotionApiClientAuthenticationError as exception:
                 LOGGER.warning(exception)
@@ -66,12 +74,40 @@ class NotionTodoConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                             type=selector.TextSelectorType.PASSWORD
                         ),
                     ),
+                    vol.Optional(
+                        CONF_PROJECT_PROPERTY,
+                        default=(user_input or {}).get(CONF_PROJECT_PROPERTY, "Project"),
+                    ): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.TEXT
+                        ),
+                    ),
+                    vol.Optional(
+                        CONF_PROJECT_FILTER,
+                        default=(user_input or {}).get(CONF_PROJECT_FILTER),
+                    ): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.TEXT
+                        ),
+                    ),
                 }
             ),
             errors=_errors,
         )
 
-    async def _test_credentials(self, token: str, database_id: str) -> None:
+    async def _test_credentials(
+        self,
+        token: str,
+        database_id: str,
+        project_property: str | None = None,
+        project_filter: str | None = None,
+    ) -> None:
         """Validate credentials."""
-        client = NotionApiClient(token=token, database_id=database_id, session=async_create_clientsession(self.hass))
+        client = NotionApiClient(
+            token=token,
+            database_id=database_id,
+            session=async_create_clientsession(self.hass),
+            project_property=project_property,
+            project_filter=project_filter,
+        )
         await client.async_get_data()

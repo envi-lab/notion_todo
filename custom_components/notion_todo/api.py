@@ -41,7 +41,9 @@ class NotionApiClient:
         self,
         token: str,
         database_id: str,
-        session: aiohttp.ClientSession
+        session: aiohttp.ClientSession,
+        project_property: str | None = None,
+        project_filter: str | None = None,
     ) -> None:
         """Notion API Client.
 
@@ -55,6 +57,9 @@ class NotionApiClient:
         self._session = session
         self._headers['Authorization'] = f'Bearer {token}'
         self._database_id = database_id
+        self._project_property = project_property.strip() if project_property else None
+        self._project_filter = project_filter.strip().lower() if project_filter else None
+        self._related_page_title_cache: dict[str, str] = {}
         self._task_template = None
         self._status_cache_loaded = False
         self._active_status_ids = set()
@@ -174,7 +179,78 @@ class NotionApiClient:
             if not page.get('has_more'):
                 break
             start_cursor = page.get('next_cursor')
+
+        if self._project_filter:
+            results = await self._filter_results_by_project(results)
+
         return {'results': results}
+
+    async def _filter_results_by_project(self, tasks: list[dict]) -> list[dict]:
+        """Filter tasks by related project title match."""
+        filtered_tasks = []
+        for task in tasks:
+            properties = task.get('properties', {})
+            relation_key = self._get_relation_property_key(properties)
+            if not relation_key:
+                continue
+
+            relation_items = properties.get(relation_key, {}).get('relation') or []
+            relation_ids = [item.get('id') for item in relation_items if item.get('id')]
+            if not relation_ids:
+                continue
+
+            related_titles = await self._get_related_page_titles(relation_ids)
+            if any(self._project_filter in title.lower() for title in related_titles if title):
+                filtered_tasks.append(task)
+
+        return filtered_tasks
+
+    def _get_relation_property_key(self, properties: dict) -> str | None:
+        """Get relation property key for project filtering."""
+        if self._project_property:
+            project_property_lower = self._project_property.lower()
+            for name, prop in properties.items():
+                if prop.get('type') != 'relation':
+                    continue
+                if name.strip().lower() == project_property_lower or prop.get('id') == self._project_property:
+                    return name
+
+        for name, prop in properties.items():
+            if prop.get('type') == 'relation':
+                return name
+
+        return None
+
+    async def _get_related_page_titles(self, page_ids: list[str]) -> list[str]:
+        """Resolve related Notion page ids to page titles."""
+        missing_ids = [page_id for page_id in page_ids if page_id not in self._related_page_title_cache]
+        if missing_ids:
+            responses = await asyncio.gather(
+                *[self._api_wrapper(
+                    method="get",
+                    url=f"{NOTION_URL}/pages/{page_id}",
+                    headers=self._headers,
+                ) for page_id in missing_ids],
+                return_exceptions=True,
+            )
+            for page_id, response in zip(missing_ids, responses):
+                if isinstance(response, Exception):
+                    self._related_page_title_cache[page_id] = ""
+                    continue
+                self._related_page_title_cache[page_id] = self._extract_page_title(response)
+
+        return [self._related_page_title_cache.get(page_id, "") for page_id in page_ids]
+
+    @staticmethod
+    def _extract_page_title(page: dict) -> str:
+        """Extract human-readable title from a Notion page response."""
+        properties = page.get('properties', {})
+        for prop in properties.values():
+            if prop.get('type') != 'title':
+                continue
+            title_parts = prop.get('title') or []
+            return ''.join(part.get('plain_text', '') for part in title_parts)
+        return ''
 
     async def update_task(
         self,
