@@ -1,5 +1,17 @@
 # Notion ToDo Integration for Home Assistant
 
+## Experimental Notice
+
+This repository is currently a hands-on maintenance playground.
+
+If you are looking for a stable, polished, production-ready integration: do not download this one right now.
+
+This is intentionally marked as work-in-progress while behavior is tested in a real setup.
+
+Original upstream project:
+
+- https://github.com/JanGiese/notion_todo
+
 This repository exists because the original project was basically in maintenance graveyard mode: useful idea, stale implementation, and enough sharp edges to turn simple sync into a mini incident report.
 
 So this fork does the practical thing: keep the integration alive, harden the fragile parts, and document everything like adults who still occasionally sigh at JSON payloads.
