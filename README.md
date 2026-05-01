@@ -1,54 +1,63 @@
-# Notion ToDo Integration for HomeAssistant
+# Notion ToDo Integration for Home Assistant
 
-[![GitHub Release][releases-shield]][releases]
-[![GitHub Activity][commits-shield]][commits]
-[![License][license-shield]](LICENSE)
-![Project Maintenance][maintenance-shield]
-[![Community Forum][forum-shield]][forum]
+This repository exists because the original project was basically in maintenance graveyard mode: useful idea, stale implementation, and enough sharp edges to turn simple sync into a mini incident report.
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=JanGiese&repository=notion_todo&category=integration)
+So this fork does the practical thing: keep the integration alive, harden the fragile parts, and document everything like adults who still occasionally sigh at JSON payloads.
 
-_Integration to integrate with [Notion](https://www.notion.so/)._
+## What This Integration Does
 
-**This integration will set up the following platforms.**
+This custom Home Assistant integration connects a Notion database to the Home Assistant `todo` platform.
 
-Platform | Description
--- | --
-`todo` | Shows all todos
+Supported platform:
 
-## Prerequisites
-- You need to have a notion account and a notion integration token. You can get one by following the instructions [here](https://developers.notion.com/docs/getting-started).
-- You need to create a database from the Notion´s official ToDo template. You can find it [here](https://www.notion.so/templates/to-do-list).
-- You need to share the database with the integration token you created before.
+- `todo`: exposes tasks from a Notion database as Home Assistant todo items.
 
-## Installation
+## What Was Fixed In This Fork
 
-1. Using the tool of choice open the directory (folder) for your HA configuration (where you find `configuration.yaml`).
-1. If you do not have a `custom_components` directory (folder) there, you need to create it.
-1. In the `custom_components` directory (folder) create a new folder called `integration_blueprint`.
-1. Download _all_ the files from the `custom_components/integration_blueprint/` directory (folder) in this repository.
-1. Place the files you downloaded in the new directory (folder) you created.
-1. Restart Home Assistant
-1. In the HA UI go to "Configuration" -> "Integrations" click "+" and search for "Notion ToDo"
+The following updates are already implemented in code:
 
-## Configuration is done in the UI
+- More robust property handling in `notion_property_helper.py`: missing properties no longer crash lookups.
+- Date serialization and parsing in `notion_property_helper.py`: JSON-safe writing and more resilient reading.
+- No extra trailing newline generated for text fields in `notion_property_helper.py`.
+- Fallback handling for unknown Notion statuses in `todo.py` to prevent `KeyError`.
+- Notion API version updated in `const.py` to `2022-06-28`.
+- Pagination added to database queries in `api.py` so datasets over 100 tasks are fully loaded.
+- Version bump in `manifest.json` to `1.1.2`.
 
-<!---->
+## Installation (Home Assistant Custom Component)
 
-## Contributions are welcome!
+1. Open your Home Assistant configuration directory (the one containing `configuration.yaml`).
+2. Create `custom_components` if it does not exist.
+3. Copy this repository's `custom_components/notion_todo` folder into your Home Assistant `custom_components` directory.
+4. Restart Home Assistant.
+5. In Home Assistant, go to `Settings -> Devices & Services -> Integrations`.
+6. Click `Add Integration`, search for `Notion ToDo`, and complete setup.
 
-If you want to contribute to this please read the [Contribution guidelines](CONTRIBUTING.md)
+## Configuration Notes
 
-***
+You will need two values during setup:
 
-[integration_blueprint]: https://github.com/JanGiese/notion_todo
-[commits-shield]: https://img.shields.io/github/commit-activity/y/JanGiese/notion_todo.svg?style=for-the-badge
-[commits]: https://github.com/JanGiese/notion_todo/commits/main
-[discord-shield]: https://img.shields.io/discord/330944238910963714.svg?style=for-the-badge
-[exampleimg]: example.png
-[forum-shield]: https://img.shields.io/badge/community-forum-brightgreen.svg?style=for-the-badge
-[forum]: https://community.home-assistant.io/
-[license-shield]: https://img.shields.io/github/license/JanGiese/notion_todo.svg?style=for-the-badge
-[maintenance-shield]: https://img.shields.io/badge/maintainer-JanGiese-blue.svg?style=for-the-badge
-[releases-shield]: https://img.shields.io/github/release/JanGiese/notion_todo.svg?style=for-the-badge
-[releases]: https://github.com/JanGiese/notion_todo/releases
+- Notion token:
+	- Create an internal integration in Notion and generate a bearer token.
+	- Notion docs: https://developers.notion.com/docs/getting-started
+- Database ID:
+	- Use a Notion database compatible with task fields.
+	- Share that database with your integration so the token can access it.
+
+If either token permissions or database sharing is incorrect, setup will fail with auth or connection errors.
+
+## Known Limitations
+
+- This integration is focused on task-style Notion databases and does not attempt to model every possible custom schema pattern.
+- Status mapping is defensive, but custom workflows in Notion may still collapse into generic Home Assistant states.
+- Network/API failures are handled, but real-time sync guarantees are still subject to Notion API behavior and Home Assistant polling cadence.
+
+## Disclaimer
+
+AI-assisted refactoring and fix support was used for parts of this maintenance pass.
+
+Human review still decided what changed, what shipped, and what did not get blamed on the compiler.
+
+## Contributing
+
+Contributions are welcome. Please see `CONTRIBUTING.md`.

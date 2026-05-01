@@ -1,7 +1,7 @@
 """Custom integration to integrate Notion with Home Assistant.
 
 For more details about this integration, please refer to
-https://github.com/JanGiese/notion_todo
+https://github.com/envi-lab/notion_todo
 """
 from __future__ import annotations
 

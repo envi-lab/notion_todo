@@ -1,5 +1,5 @@
 """Helper class to parse Notion properties."""
-from datetime import datetime
+from datetime import datetime, date
 import logging
 
 DATE_FORMAT = '%Y-%m-%d'
@@ -11,6 +11,8 @@ class NotionPropertyHelper:
     def get_property_by_id(id, data):
         """Get property by id."""
         key = NotionPropertyHelper._get_property_key_by_id(id, data)
+        if key is None:
+            return None
         return NotionPropertyHelper._property(data['properties'][key])
 
     @staticmethod
@@ -84,7 +86,11 @@ class NotionPropertyHelper:
     @staticmethod
     def _date(prop, value=None):
         if value:
-            prop['date'] = {'start': value}
+            if isinstance(value, datetime):
+                start_str = value.isoformat()
+            else:
+                start_str = value.strftime(DATE_FORMAT)
+            prop['date'] = {'start': start_str}
             if 'name' in prop:
                 del prop['name']
             return prop
@@ -94,7 +100,10 @@ class NotionPropertyHelper:
                 return None
             start_date = prop['date']['start']
             if start_date and len(start_date) > 10:
-                return datetime.strptime(start_date, DATETIME_FORMAT)
+                try:
+                    return datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                except ValueError:
+                    return datetime.strptime(start_date, DATETIME_FORMAT)
             elif start_date:
                 return datetime.strptime(start_date, DATE_FORMAT)
             else:
@@ -154,10 +163,7 @@ class NotionPropertyHelper:
                 del prop['name']
             return prop
         else:
-            text = ''
-            for line in prop[prop_type]:
-                text += line['plain_text'] + '\n'
-            return text
+            return ''.join(line['plain_text'] for line in prop[prop_type])
 
     @staticmethod
     def _parse_array(prop):

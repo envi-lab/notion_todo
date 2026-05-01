@@ -59,11 +59,23 @@ class NotionApiClient:
 
     async def async_get_data(self) -> any:
         """Get data from the API."""
-        return await self._api_wrapper(
-            method="post",
-            url=f"{NOTION_URL}/databases/{self._database_id}/query",
-            headers=self._headers
-        )
+        results = []
+        start_cursor = None
+        while True:
+            body = {}
+            if start_cursor:
+                body['start_cursor'] = start_cursor
+            page = await self._api_wrapper(
+                method="post",
+                url=f"{NOTION_URL}/databases/{self._database_id}/query",
+                headers=self._headers,
+                data=body if body else None
+            )
+            results.extend(page.get('results', []))
+            if not page.get('has_more'):
+                break
+            start_cursor = page.get('next_cursor')
+        return {'results': results}
 
     async def update_task(
         self,

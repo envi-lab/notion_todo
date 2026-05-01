@@ -2,11 +2,11 @@
   "domain": "notion_todo",
   "name": "Notion ToDo",
   "codeowners": [
-    "@JanGiese"
+    "@envi-lab"
   ],
   "config_flow": true,
-  "documentation": "https://github.com/JanGiese/notion_todo",
+  "documentation": "https://github.com/envi-lab/notion_todo",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/JanGiese/notion_todo/issues",
-  "version": "0.0.2"
+  "issue_tracker": "https://github.com/envi-lab/notion_todo/issues",
+  "version": "1.1.2"
 }
