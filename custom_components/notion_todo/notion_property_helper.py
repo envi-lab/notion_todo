@@ -26,6 +26,20 @@ class NotionPropertyHelper:
         return data
 
     @staticmethod
+    def get_status_meta_by_id(id, data):
+        """Get status id and name by property id."""
+        key = NotionPropertyHelper._get_property_key_by_id(id, data)
+        if key is None:
+            return None, None
+
+        prop = data['properties'][key]
+        if prop.get('type') != 'status':
+            return None, None
+
+        status = prop.get('status') or {}
+        return status.get('id'), status.get('name')
+
+    @staticmethod
     def del_properties_except(ids, properties):
         """Delete properties except param."""
         delete_properties = []

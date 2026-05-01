@@ -33,16 +33,31 @@ STATUS_IN_PROGRESS = 'in-progress'
 STATUS_ARCHIVED = 'archived'
 STATUS_DONE = 'done'
 STATUS_NOT_STARTED = 'not-started'
-NOTION_TO_HASS_STATUS = {
-    STATUS_NOT_STARTED: TodoItemStatus.NEEDS_ACTION,
-    STATUS_IN_PROGRESS: TodoItemStatus.NEEDS_ACTION,
-    STATUS_DONE: TodoItemStatus.COMPLETED,
-    STATUS_ARCHIVED: TodoItemStatus.COMPLETED
-}
-HASS_TO_NOTION_STATUS = {
-    TodoItemStatus.NEEDS_ACTION: STATUS_NOT_STARTED,
-    TodoItemStatus.COMPLETED: STATUS_DONE
-}
+
+
+def _name_looks_completed(value: str | None) -> bool:
+    if not value:
+        return False
+    normalized = value.strip().lower()
+    keywords = [
+        'done',
+        'complete',
+        'completed',
+        'archive',
+        'archived',
+        'erledigt',
+        'abgeschlossen',
+        'fertig'
+    ]
+    return any(keyword in normalized for keyword in keywords)
+
+
+def _map_notion_to_hass_status(status_id: str | None, status_name: str | None) -> TodoItemStatus:
+    if status_id in (STATUS_DONE, STATUS_ARCHIVED) or _name_looks_completed(status_name):
+        return TodoItemStatus.COMPLETED
+    if status_id in (STATUS_NOT_STARTED, STATUS_IN_PROGRESS):
+        return TodoItemStatus.NEEDS_ACTION
+    return TodoItemStatus.NEEDS_ACTION
 
 class NotionTodoListEntity(CoordinatorEntity[NotionDataUpdateCoordinator], TodoListEntity):
     """A Notion TodoListEntity."""
@@ -76,8 +91,12 @@ class NotionTodoListEntity(CoordinatorEntity[NotionDataUpdateCoordinator], TodoL
             items = []
             for task in self.coordinator.data['results']:
                 id = task['id']
-                self._status[id] = propHelper.get_property_by_id(TASK_STATUS_PROPERTY, task)
-                status = NOTION_TO_HASS_STATUS.get(self._status[id], TodoItemStatus.NEEDS_ACTION)
+                status_id, status_name = propHelper.get_status_meta_by_id(TASK_STATUS_PROPERTY, task)
+                self._status[id] = status_id
+                status = _map_notion_to_hass_status(status_id, status_name)
+
+                if status == TodoItemStatus.COMPLETED:
+                    continue
 
                 items.append(
                     TodoItem(
@@ -93,17 +112,21 @@ class NotionTodoListEntity(CoordinatorEntity[NotionDataUpdateCoordinator], TodoL
 
     async def async_create_todo_item(self, item: TodoItem) -> None:
         """Create a To-do item."""
-        await self.coordinator.client.create_task(item.summary, status=HASS_TO_NOTION_STATUS[item.status])
+        status = await self.coordinator.client.resolve_status_id(
+            is_completed=item.status == TodoItemStatus.COMPLETED,
+            current_status_id=None,
+        )
+        await self.coordinator.client.create_task(item.summary, status=status)
         await self.coordinator.async_refresh()
 
     async def async_update_todo_item(self, item: TodoItem) -> None:
         """Update a To-do item."""
         uid: str = cast(str, item.uid)
-        status = HASS_TO_NOTION_STATUS[item.status]
-        if self._status[uid] == STATUS_IN_PROGRESS and status == STATUS_NOT_STARTED:
-            status = STATUS_IN_PROGRESS
-        if self._status[uid] == STATUS_ARCHIVED and status == STATUS_DONE:
-            status = STATUS_ARCHIVED
+        current_status_id = self._status.get(uid)
+        status = await self.coordinator.client.resolve_status_id(
+            is_completed=item.status == TodoItemStatus.COMPLETED,
+            current_status_id=current_status_id,
+        )
 
         await self.coordinator.client.update_task(task_id=uid,
                                                   title=item.summary,

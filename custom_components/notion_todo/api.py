@@ -56,6 +56,101 @@ class NotionApiClient:
         self._headers['Authorization'] = f'Bearer {token}'
         self._database_id = database_id
         self._task_template = None
+        self._status_cache_loaded = False
+        self._active_status_ids = set()
+        self._completed_status_ids = set()
+        self._default_active_status_id = None
+        self._default_completed_status_id = None
+
+    @staticmethod
+    def _name_looks_completed(value: str | None) -> bool:
+        if not value:
+            return False
+        normalized = value.strip().lower()
+        keywords = [
+            'done',
+            'complete',
+            'completed',
+            'archive',
+            'archived',
+            'erledigt',
+            'abgeschlossen',
+            'fertig'
+        ]
+        return any(keyword in normalized for keyword in keywords)
+
+    def _cache_status_options(self, database: dict) -> None:
+        if self._status_cache_loaded:
+            return
+
+        properties = database.get('properties', {})
+        status_property = None
+        for prop in properties.values():
+            if prop.get('id') == TASK_STATUS_PROPERTY and prop.get('type') == 'status':
+                status_property = prop
+                break
+
+        if not status_property:
+            self._status_cache_loaded = True
+            return
+
+        status_meta = status_property.get('status', {})
+        options = status_meta.get('options', [])
+        groups = status_meta.get('groups', [])
+        option_ids = {option.get('id') for option in options if option.get('id')}
+
+        for group in groups:
+            group_name = group.get('name')
+            ids = set(group.get('option_ids') or [])
+            if self._name_looks_completed(group_name):
+                self._completed_status_ids.update(ids)
+            else:
+                self._active_status_ids.update(ids)
+
+        for option in options:
+            option_id = option.get('id')
+            option_name = option.get('name')
+            if not option_id:
+                continue
+
+            if option_id in ('done', 'archived') or self._name_looks_completed(option_name):
+                self._completed_status_ids.add(option_id)
+
+        self._active_status_ids = self._active_status_ids.intersection(option_ids)
+        self._completed_status_ids = self._completed_status_ids.intersection(option_ids)
+
+        if not self._active_status_ids:
+            self._active_status_ids = option_ids - self._completed_status_ids
+
+        if self._active_status_ids:
+            self._default_active_status_id = next(iter(self._active_status_ids))
+        if self._completed_status_ids:
+            self._default_completed_status_id = next(iter(self._completed_status_ids))
+
+        self._status_cache_loaded = True
+
+    async def resolve_status_id(self, is_completed: bool, current_status_id: str | None = None) -> str:
+        """Resolve a valid status id for the target completion state."""
+        if not self._status_cache_loaded:
+            database = await self._get_database()
+            self._cache_status_options(database)
+
+        if is_completed:
+            if current_status_id and current_status_id in self._completed_status_ids:
+                return current_status_id
+            if self._default_completed_status_id:
+                return self._default_completed_status_id
+            if current_status_id:
+                return current_status_id
+            return 'done'
+
+        if current_status_id and current_status_id in self._active_status_ids:
+            return current_status_id
+        if self._default_active_status_id:
+            return self._default_active_status_id
+        if current_status_id:
+            return current_status_id
+        return 'not-started'
 
     async def async_get_data(self) -> any:
         """Get data from the API."""
@@ -154,6 +249,7 @@ class NotionApiClient:
     async def _get_task_template(self):
         if not self._task_template:
             database = await self._get_database()
+            self._cache_status_options(database)
             properties = database['properties']
             propHelper.del_properties_except(["title", TASK_STATUS_PROPERTY, TASK_DATE_PROPERTY, TASK_DESCRIPTION_PROPERTY], properties)
             self._task_template = {
