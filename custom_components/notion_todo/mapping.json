@@ -1,0 +1,31 @@
+{
+  "property_fallback_names": {
+    "due_date": [
+      "due",
+      "due date",
+      "faellig",
+      "f\u00e4llig",
+      "faelligkeit",
+      "f\u00e4lligkeit",
+      "deadline"
+    ],
+    "description": [
+      "description",
+      "beschreibung",
+      "zusammenfassung",
+      "summary"
+    ]
+  },
+  "status": {
+    "completed_keywords": [
+      "done",
+      "complete",
+      "completed",
+      "archive",
+      "archived",
+      "erledigt",
+      "abgeschlossen",
+      "fertig"
+    ]
+  }
+}

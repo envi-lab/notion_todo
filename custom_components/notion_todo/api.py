@@ -8,7 +8,14 @@ import aiohttp
 import async_timeout
 from datetime import datetime
 
-from .const import NOTION_URL, NOTION_VERSION, TASK_STATUS_PROPERTY, TASK_DATE_PROPERTY, TASK_DESCRIPTION_PROPERTY
+from .const import (
+    NOTION_URL,
+    NOTION_VERSION,
+    TASK_STATUS_PROPERTY,
+    TASK_DATE_PROPERTY,
+    TASK_DESCRIPTION_PROPERTY,
+    COMPLETED_STATUS_KEYWORDS,
+)
 from .notion_property_helper import NotionPropertyHelper as propHelper
 
 
@@ -73,17 +80,7 @@ class NotionApiClient:
         if not value:
             return False
         normalized = value.strip().lower()
-        keywords = [
-            'done',
-            'complete',
-            'completed',
-            'archive',
-            'archived',
-            'erledigt',
-            'abgeschlossen',
-            'fertig'
-        ]
-        return any(keyword in normalized for keyword in keywords)
+        return any(keyword in normalized for keyword in COMPLETED_STATUS_KEYWORDS)
 
     def _cache_status_options(self, database: dict) -> None:
         if self._status_cache_loaded:

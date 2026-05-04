@@ -19,6 +19,7 @@ from .const import (
     TASK_STATUS_PROPERTY,
     TASK_DESCRIPTION_PROPERTY,
     TASK_DATE_PROPERTY,
+    COMPLETED_STATUS_KEYWORDS,
 )
 from .coordinator import NotionDataUpdateCoordinator
 from .notion_property_helper import NotionPropertyHelper as propHelper
@@ -41,17 +42,7 @@ def _name_looks_completed(value: str | None) -> bool:
     if not value:
         return False
     normalized = value.strip().lower()
-    keywords = [
-        'done',
-        'complete',
-        'completed',
-        'archive',
-        'archived',
-        'erledigt',
-        'abgeschlossen',
-        'fertig'
-    ]
-    return any(keyword in normalized for keyword in keywords)
+    return any(keyword in normalized for keyword in COMPLETED_STATUS_KEYWORDS)
 
 
 def _map_notion_to_hass_status(status_id: str | None, status_name: str | None) -> TodoItemStatus:

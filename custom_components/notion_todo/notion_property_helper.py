@@ -2,7 +2,13 @@
 from datetime import datetime, date
 import logging
 
-from .const import TASK_DATE_PROPERTY, TASK_DESCRIPTION_PROPERTY, TASK_STATUS_PROPERTY
+from .const import (
+    TASK_DATE_PROPERTY,
+    TASK_DESCRIPTION_PROPERTY,
+    TASK_STATUS_PROPERTY,
+    DATE_FALLBACK_PROPERTY_NAMES,
+    DESCRIPTION_FALLBACK_PROPERTY_NAMES,
+)
 
 DATE_FORMAT = '%Y-%m-%d'
 DATETIME_FORMAT = DATE_FORMAT + 'T%H:%M:%S.%f%z'
@@ -84,19 +90,9 @@ class NotionPropertyHelper:
                 if attr.get('type') == 'status':
                     return name
             return None
-
         if id == TASK_DATE_PROPERTY:
-            preferred_names = {
-                'due',
-                'due date',
-                'faellig',
-                'fällig',
-                'faelligkeit',
-                'fälligkeit',
-                'deadline',
-            }
             for name, attr in properties.items():
-                if attr.get('type') == 'date' and name.strip().lower() in preferred_names:
+                if attr.get('type') == 'date' and name.strip().lower() in DATE_FALLBACK_PROPERTY_NAMES:
                     return name
             for name, attr in properties.items():
                 if attr.get('type') == 'date':
@@ -104,9 +100,8 @@ class NotionPropertyHelper:
             return None
 
         if id == TASK_DESCRIPTION_PROPERTY:
-            preferred_names = {'description', 'beschreibung', 'zusammenfassung', 'summary'}
             for name, attr in properties.items():
-                if attr.get('type') == 'rich_text' and name.strip().lower() in preferred_names:
+                if attr.get('type') == 'rich_text' and name.strip().lower() in DESCRIPTION_FALLBACK_PROPERTY_NAMES:
                     return name
             for name, attr in properties.items():
                 if attr.get('type') == 'rich_text':
