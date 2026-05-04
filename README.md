@@ -12,9 +12,6 @@ Original upstream project:
 
 - https://github.com/JanGiese/notion_todo
 
-This repository exists because the original project was basically in maintenance graveyard mode: useful idea, stale implementation, and enough sharp edges to turn simple sync into a mini incident report.
-
-So this fork does the practical thing: keep the integration alive, harden the fragile parts, and document everything like adults who still occasionally sigh at JSON payloads.
 
 ## What This Integration Does
 
@@ -24,17 +21,26 @@ Supported platform:
 
 - `todo`: exposes tasks from a Notion database as Home Assistant todo items.
 
-## What Was Fixed In This Fork
+## Changes Made In This Fork
 
 The following updates are already implemented in code:
 
+### Fixes
 - More robust property handling in `notion_property_helper.py`: missing properties no longer crash lookups.
 - Date serialization and parsing in `notion_property_helper.py`: JSON-safe writing and more resilient reading.
 - No extra trailing newline generated for text fields in `notion_property_helper.py`.
 - Fallback handling for unknown Notion statuses in `todo.py` to prevent `KeyError`.
-- Notion API version updated in `const.py` to `2022-06-28`.
+- Notion API version pinned to `2022-06-28` in `const.py` (verified: this is the latest working version released by Notion as of 2026).
 - Pagination added to database queries in `api.py` so datasets over 100 tasks are fully loaded.
 - Version bump in `manifest.json` to `1.1.2`.
+- Hardcoded fallback property names and completed-status keywords moved out of code into `mapping.json`, loaded centrally via `const.py`.
+- Translation files fixed to pass `hassfest` validation (no inline URLs in description fields).
+- CI workflow overhauled: unit tests always run on push, integration tests only run when `NOTION_TOKEN` secret is available.
+- `test_api.py` marked with `@pytest.mark.integration` so it is skipped cleanly in CI without credentials.
+- Unit test file `test_mapping_unit.py` added: validates `mapping.json` structure without requiring any credentials.
+
+### Features
+- Project filtering: optionally define a Notion relation column and a filter keyword during setup. Only tasks whose linked project title contains that keyword will be shown (e.g. show only tasks tagged with "Chores" from a shared household project database).
 
 ## Installation (Home Assistant Custom Component)
 
@@ -66,10 +72,6 @@ If either token permissions or database sharing is incorrect, setup will fail wi
 
 ## Disclaimer
 
-AI-assisted refactoring and fix support was used for parts of this maintenance pass.
+This is a personal hobby project. AI-assisted tooling was used during development, with human review throughout.
 
-Human review still decided what changed, what shipped, and what did not get blamed on the compiler.
-
-## Contributing
-
-Contributions are welcome. Please see `CONTRIBUTING.md`.
+If something is broken for your setup, feel free to open an issue - no promises on response time, but feedback is welcome.

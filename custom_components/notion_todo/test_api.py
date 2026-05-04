@@ -2,6 +2,7 @@
 import os
 import aiohttp
 import unittest
+import pytest
 from custom_components.notion_todo.api import NotionApiClient
 
 TITLE = "title"
@@ -11,9 +12,13 @@ DONE = "done"
 DESCRIPTION = "test"
 DUE = "2024-01-01"
 
-TOKEN = os.environ["NOTION_TOKEN"]
-DATABASE_ID = os.environ["NOTION_DATABASE_ID"]
+TOKEN = os.getenv("NOTION_TOKEN")
+DATABASE_ID = os.getenv("NOTION_DATABASE_ID")
 
+pytestmark = pytest.mark.integration
+
+
+@unittest.skipUnless(TOKEN and DATABASE_ID, "Integration test requires NOTION_TOKEN and NOTION_DATABASE_ID")
 class TestApi(unittest.IsolatedAsyncioTestCase):
     """Test cases for the Notion API client."""
 
