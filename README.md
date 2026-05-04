@@ -12,6 +12,8 @@ Original upstream project:
 
 - https://github.com/JanGiese/notion_todo
 
+All glory goes to [JanGiese](https://github.com/JanGiese) and hypnotoad. This fork exists purely because the original went quiet - the idea and most of the code are his.
+
 
 ## What This Integration Does
 
