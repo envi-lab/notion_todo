@@ -244,7 +244,7 @@ class NotionApiClient:
 
         tasks = [_fetch_one(page_id) for page_id in page_ids]
         fetched = await asyncio.gather(*tasks)
-        return {page_id: title for page_id, title in fetched}
+        return dict(fetched)
 
     async def update_task(
         self,

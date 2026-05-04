@@ -18,6 +18,10 @@ jobs:
         - name: Test with pytest
           run: |
             pip install pytest pytest-cov async-timeout
+            if [ -z "${{ secrets.NOTION_TOKEN }}" ] || [ -z "${{ secrets.NOTION_DATABASE_ID }}" ]; then
+              echo "Skipping integration tests because NOTION_TOKEN or NOTION_DATABASE_ID is not configured."
+              exit 0
+            fi
             NOTION_TOKEN="${{ secrets.NOTION_TOKEN }}" \
               NOTION_DATABASE_ID="${{ secrets.NOTION_DATABASE_ID }}" \
               pytest ./custom_components/notion_todo/test*.py

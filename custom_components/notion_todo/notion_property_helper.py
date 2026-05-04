@@ -1,5 +1,5 @@
 """Helper class to parse Notion properties."""
-from datetime import datetime, date
+from datetime import datetime
 import logging
 
 from .const import (

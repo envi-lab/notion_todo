@@ -5,13 +5,13 @@ from pathlib import Path
 
 
 def _normalize_words(values: list[str]) -> tuple[str, ...]:
-	return tuple(value.strip().lower() for value in values if value and value.strip())
+    return tuple(value.strip().lower() for value in values if value and value.strip())
 
 
 def _load_mapping() -> dict:
-	mapping_path = Path(__file__).with_name("mapping.json")
-	with mapping_path.open(encoding="utf-8") as handle:
-		return json.load(handle)
+    mapping_path = Path(__file__).with_name("mapping.json")
+    with mapping_path.open(encoding="utf-8") as handle:
+        return json.load(handle)
 
 LOGGER: Logger = getLogger(__package__)
 
